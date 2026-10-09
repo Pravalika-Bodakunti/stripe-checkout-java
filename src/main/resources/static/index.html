@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout test</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://js.stripe.com/v3/"></script>
+</head>
+<body>
+  <main class="receipt">
+    <h1>Corner Coffee</h1>
+    <p class="sub">Test mode. No real money moves.</p>
+    <div class="line"><span>Oat latte ×2</span><span>$12.00</span></div>
+    <div class="line"><span>Almond croissant ×2</span><span>$13.00</span></div>
+    <div class="line total"><span>Total</span><span>$25.00</span></div>
+
+    <form id="payment-form">
+      <div id="payment-element"></div>
+      <button id="pay" type="submit" disabled>Pay $25.00</button>
+      <p id="message" class="msg" role="status"></p>
+    </form>
+  </main>
+
+  <script>
+    const btn = document.getElementById("pay");
+    const msg = document.getElementById("message");
+
+    (async () => {
+      const { publishableKey } = await (await fetch("/config")).json();
+      const stripe = Stripe(publishableKey);
+
+      // Ask the server to create the order + PaymentIntent. The browser never sends a price.
+      const { orderId, clientSecret } = await (await fetch("/orders", { method: "POST" })).json();
+
+      const elements = stripe.elements({ clientSecret });
+      elements.create("payment").mount("#payment-element");
+      btn.disabled = false;
+
+      document.getElementById("payment-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        btn.disabled = true;
+        msg.textContent = "";
+        msg.className = "msg";
+
+        // Stripe shows the 3D Secure challenge automatically if the card needs it,
+        // then redirects to return_url.
+        const { error } = await stripe.confirmPayment({
+          elements,
+          confirmParams: { return_url: `${location.origin}/return.html?order=${orderId}` },
+        });
+
+        // Only reached if confirmation failed before any redirect (e.g. declined card).
+        msg.textContent = error.message;
+        msg.className = "msg bad";
+        btn.disabled = false;
+      });
+    })();
+  </script>
+</body>
+</html>

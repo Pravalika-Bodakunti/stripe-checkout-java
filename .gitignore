@@ -1,0 +1,4 @@
+.env
+target/
+payments.mv.db
+payments.trace.db

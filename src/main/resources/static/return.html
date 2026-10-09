@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payment status</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="receipt">
+    <h1>Corner Coffee</h1>
+    <p class="sub">Checking your payment with the server.</p>
+    <p id="status" class="status" role="status">Confirming payment…</p>
+    <p id="detail" class="msg"></p>
+    <p><a href="/">Start a new order</a></p>
+  </main>
+
+  <script>
+    // Stripe adds ?redirect_status=succeeded to this URL. We deliberately IGNORE it:
+    // anyone can type that into the address bar. Only our server's order status counts,
+    // and only the verified webhook can change it.
+    const orderId = new URLSearchParams(location.search).get("order");
+    const statusEl = document.getElementById("status");
+    const detailEl = document.getElementById("detail");
+    let attempts = 0;
+
+    async function poll() {
+      attempts++;
+      const res = await fetch(`/orders/${orderId}`);
+      if (!res.ok) { statusEl.textContent = "Order not found"; statusEl.className = "status failed"; return; }
+      const order = await res.json();
+
+      if (order.status === "paid") {
+        statusEl.textContent = "Paid";
+        statusEl.className = "status paid";
+        detailEl.textContent = `$${(order.amount / 100).toFixed(2)} received. Order ${order.id.slice(0, 8)}.`;
+      } else if (order.status === "failed") {
+        statusEl.textContent = "Payment failed";
+        statusEl.className = "status failed";
+        detailEl.textContent = "The card was declined or authentication failed. Start a new order to try again.";
+      } else if (attempts < 15) {
+        setTimeout(poll, 2000);
+      } else {
+        statusEl.textContent = "Still processing";
+        detailEl.textContent = "The server hasn't received confirmation yet. Is `stripe listen` running?";
+      }
+    }
+    poll();
+  </script>
+</body>
+</html>
